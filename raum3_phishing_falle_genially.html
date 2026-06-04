@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raum 3 – Die Phishing-Falle</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #0d1117;
+    min-height: 100vh;
+    overflow: hidden;
+  }
+
+  /* ── Scanlines overlay ── */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,255,150,0.012) 2px,
+      rgba(0,255,150,0.012) 4px
+    );
+    pointer-events: none;
+    z-index: 999;
+  }
+
+  /* ══════════════════════════
+     HEADER / DIGGI
+  ══════════════════════════ */
+  #header {
+    background: #111d2e;
+    border-bottom: 1px solid #1e3a5f;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    z-index: 10;
+  }
+
+  #diggi-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: #1e3a5f;
+    border: 2px solid #2d6a9f;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+
+  #diggi-bubble {
+    background: #1e3a5f;
+    border: 1px solid #2d6a9f;
+    border-radius: 10px;
+    padding: 8px 14px;
+    flex: 1;
+    font-size: 12px;
+    color: #7dd3fc;
+    line-height: 1.5;
+  }
+
+  #diggi-bubble::before {
+    content: 'Diggi: ';
+    font-weight: 700;
+    color: #38bdf8;
+  }
+
+  #hint-btn {
+    background: #1a2d1a;
+    border: 2px solid #22c55e;
+    border-radius: 8px;
+    color: #4ade80;
+    width: 38px;
+    height: 38px;
+    cursor: pointer;
+    font-size: 18px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.2s;
+  }
+  #hint-btn:hover { background: #22c55e22; }
+
+  /* ══════════════════════════
+     MAIN LAYOUT
+  ══════════════════════════ */
+  #main {
+    display: flex;
+    height: calc(100vh - 62px);
+  }
+
+  /* ══════════════════════════
+     EMAIL LIST (left panel)
+  ══════════════════════════ */
+  #email-list {
+    width: 220px;
+    background: #0f1923;
+    border-right: 1px solid #1e3a5f;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .list-header {
+    padding: 10px 14px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    border-bottom: 1px solid #1e293b;
+  }
+
+  .email-item {
+    padding: 11px 14px;
+    border-bottom: 1px solid #1a2332;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.15s;
+    border-left: 3px solid transparent;
+  }
+  .email-item:hover { background: #1e293b; }
+  .email-item.active-safe { background: #1e293b; border-left-color: #3b82f6; }
+  .email-item.active-phish { background: #2a1010; border-left-color: #ef4444; }
+
+  .ei-from {
+    font-size: 12px;
+    font-weight: 700;
+    color: #e2e8f0;
+    margin-bottom: 3px;
+    padding-right: 14px;
+  }
+  .ei-subject {
+    font-size: 11px;
+    color: #94a3b8;
+    line-height: 1.3;
+  }
+  .ei-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: #3b82f6;
+    position: absolute;
+    right: 10px; top: 14px;
+  }
+  .ei-dot.red { background: #ef4444; }
+
+  /* ══════════════════════════
+     EMAIL DETAIL (right panel)
+  ══════════════════════════ */
+  #email-detail {
+    flex: 1;
+    background: #0c1221;
+    padding: 20px;
+    overflow-y: auto;
+    position: relative;
+  }
+
+  /* Placeholder */
+  #placeholder {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: #1e3a5f;
+    gap: 12px;
+  }
+  #placeholder svg { opacity: 0.4; }
+  #placeholder p { font-size: 13px; color: #334155; }
+
+  /* Email header card */
+  .email-card {
+    background: #111827;
+    border: 1px solid #1e3a5f;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 16px;
+  }
+
+  .ef {
+    display: flex;
+    gap: 8px;
+    font-size: 12px;
+    margin-bottom: 7px;
+    align-items: flex-start;
+  }
+  .ef:last-child { margin-bottom: 0; }
+  .ef-label {
+    color: #475569;
+    font-weight: 700;
+    font-size: 11px;
+    min-width: 52px;
+    padding-top: 1px;
+  }
+  .ef-val { color: #94a3b8; flex: 1; }
+
+  /* Safe badge */
+  .safe-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #14532d;
+    color: #4ade80;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 12px;
+    border-radius: 20px;
+    margin-bottom: 14px;
+  }
+
+  /* Safe body */
+  .safe-body {
+    font-size: 13px;
+    color: #64748b;
+    line-height: 1.7;
+    padding: 12px 14px;
+    background: #0d1b0d;
+    border: 1px solid #14532d;
+    border-radius: 6px;
+  }
+  .safe-body p { margin-bottom: 10px; }
+  .safe-body p:last-child { margin-bottom: 0; }
+
+  /* ── Phishing task bar ── */
+  #task-bar { margin-bottom: 14px; }
+  .task-label {
+    font-size: 10px;
+    color: #475569;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 6px;
+  }
+  #progress-track {
+    background: #1e293b;
+    height: 5px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 6px;
+  }
+  #progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #ef4444, #f97316);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+  #found-counter { font-size: 12px; color: #64748b; }
+  #found-counter span { color: #4ade80; font-weight: 700; }
+
+  /* ── Hotspots ── */
+  .hotspot {
+    display: inline;
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 1px 4px;
+    border: 1px dashed #fbbf2466;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .hotspot:hover { background: rgba(251,191,36,0.15); border-color: #fbbf24; }
+  .hotspot.found {
+    background: rgba(74,222,128,0.12);
+    border: 1px solid #4ade80;
+    color: #86efac;
+    cursor: default;
+  }
+
+  /* ── Phishing email body ── */
+  .phish-body { font-size: 13px; color: #94a3b8; line-height: 1.7; }
+  .phish-body p { margin-bottom: 12px; }
+  .phish-body p:last-child { margin-bottom: 0; }
+
+  .warn-box {
+    background: #1a0a0a;
+    border: 1px solid #991b1b;
+    border-radius: 6px;
+    padding: 10px 14px;
+    color: #fca5a5;
+    font-weight: 700;
+    font-size: 13px;
+    margin: 14px 0;
+  }
+
+  /* ── Track button ── */
+  #track-btn {
+    display: inline-block;
+    background: #1d4ed8;
+    color: #bfdbfe;
+    padding: 9px 22px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    margin: 6px 0 14px;
+    border: 1px solid #3b82f6;
+    position: relative;
+    transition: background 0.2s, border-color 0.2s;
+    user-select: none;
+  }
+  #track-btn:hover { background: rgba(251,191,36,0.1); border-color: #fbbf24; color: #fde68a; }
+  #track-btn.found { background: rgba(74,222,128,0.1); border-color: #4ade80; color: #86efac; cursor: default; }
+
+  #fake-url {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: #ef4444;
+    background: #1a0a0a;
+    padding: 2px 8px;
+    border-radius: 3px;
+    margin-top: 5px;
+    display: none;
+    border: 1px solid #991b1b;
+  }
+  #track-btn:hover #fake-url,
+  #track-btn.found #fake-url { display: block; }
+
+  /* ── Wrong feedback ── */
+  #wrong-msg {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a0a0a;
+    border: 1px solid #991b1b;
+    border-radius: 6px;
+    padding: 7px 16px;
+    color: #fca5a5;
+    font-size: 12px;
+    z-index: 100;
+    display: none;
+    white-space: nowrap;
+  }
+
+  /* ══════════════════════════
+     SUCCESS OVERLAY
+  ══════════════════════════ */
+  #success-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 200;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    text-align: center;
+    padding: 30px;
+    animation: fadeIn 0.5s ease;
+  }
+  #success-overlay.visible { display: flex; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .success-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: #4ade80;
+    letter-spacing: 1px;
+  }
+
+  #code-digit {
+    font-family: 'Courier New', monospace;
+    font-size: 80px;
+    font-weight: 900;
+    color: #fbbf24;
+    line-height: 1;
+    animation: pulseGold 1.5s ease-in-out infinite;
+  }
+
+  @keyframes pulseGold {
+    0%, 100% { text-shadow: 0 0 20px #fbbf2455; }
+    50%       { text-shadow: 0 0 50px #fbbf24cc, 0 0 80px #f9731688; }
+  }
+
+  #pixel-grid {
+    display: grid;
+    grid-template-columns: repeat(16, 10px);
+    grid-template-rows: repeat(6, 10px);
+    gap: 2px;
+    margin-bottom: 4px;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #pixel-grid.visible { opacity: 1; }
+  .px {
+    width: 10px; height: 10px;
+    border-radius: 1px;
+    background: #ef4444;
+    animation: pixelFall 0.6s ease forwards;
+    animation-delay: calc(var(--d) * 40ms);
+    opacity: 0;
+  }
+  @keyframes pixelFall {
+    0%   { opacity: 1; transform: translateY(0) scale(1); }
+    100% { opacity: 0; transform: translateY(40px) scale(0.3); }
+  }
+
+  .notebook {
+    background: #1a1508;
+    border: 1px solid #fbbf24;
+    border-radius: 8px;
+    padding: 16px 22px;
+    max-width: 420px;
+    font-size: 12px;
+    color: #fde68a;
+    line-height: 1.7;
+    font-family: 'Courier New', monospace;
+    text-align: left;
+  }
+  .notebook strong { color: #fbbf24; }
+
+  #reset-btn {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    color: #64748b;
+    padding: 7px 16px;
+    cursor: pointer;
+    font-size: 12px;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    transition: color 0.2s;
+    margin-top: 4px;
+  }
+  #reset-btn:hover { color: #94a3b8; }
+
+  /* ══════════════════════════
+     HINT OVERLAY
+  ══════════════════════════ */
+  #hint-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.75);
+    z-index: 300;
+    display: none;
+    align-items: center;
+    justify-content: center;
+  }
+  #hint-overlay.visible { display: flex; }
+
+  #hint-panel {
+    background: #0f172a;
+    border: 1px solid #2d6a9f;
+    border-radius: 12px;
+    padding: 22px 24px 18px;
+    max-width: 360px;
+    width: 90%;
+    position: relative;
+  }
+  .hint-title {
+    font-size: 13px;
+    font-weight: 800;
+    color: #38bdf8;
+    margin-bottom: 14px;
+  }
+  .hint-item {
+    background: #1e293b;
+    border-radius: 6px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    font-size: 12px;
+    color: #64748b;
+    line-height: 1.5;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .hint-item:hover { border-color: #2d6a9f; }
+  .hint-item.revealed { border-color: #2d6a9f; color: #7dd3fc; }
+  .hint-num { font-weight: 700; color: #38bdf8; margin-right: 4px; }
+  #hint-close {
+    position: absolute;
+    top: 12px; right: 14px;
+    background: none;
+    border: none;
+    color: #475569;
+    font-size: 20px;
+    cursor: pointer;
+    line-height: 1;
+  }
+  #hint-close:hover { color: #94a3b8; }
+</style>
+</head>
+<body>
+
+<!-- ═══ HEADER ═══ -->
+<div id="header">
+  <div id="diggi-avatar">🤖</div>
+  <div id="diggi-bubble" aria-live="polite">
+    Oje, schaut euch Giseldas Posteingang an! ShadowByte hat eine täuschend echte Mail geschickt. Giselda will gerade klicken – findet die Phishing-Mail und ihre drei Fehler!
+  </div>
+  <button id="hint-btn" onclick="openHints()" aria-label="Hinweise öffnen">💡</button>
+</div>
+
+<!-- ═══ MAIN ═══ -->
+<div id="main">
+
+  <!-- Email list -->
+  <div id="email-list" role="list" aria-label="Posteingang">
+    <div class="list-header">Posteingang (3)</div>
+
+    <div class="email-item" id="item-lib" role="listitem" tabindex="0"
+         onclick="showEmail('lib')" onkeydown="if(event.key==='Enter')showEmail('lib')">
+      <div class="ei-dot" aria-hidden="true"></div>
+      <div class="ei-from">Stadtbibliothek DD</div>
+      <div class="ei-subject">Erinnerung: Ihr Buch ist fällig</div>
+    </div>
+
+    <div class="email-item" id="item-phish" role="listitem" tabindex="0"
+         onclick="showEmail('phish')" onkeydown="if(event.key==='Enter')showEmail('phish')">
+      <div class="ei-dot red" aria-hidden="true"></div>
+      <div class="ei-from">A-to-Z-Versand</div>
+      <div class="ei-subject">WICHTIG: Ihr Paket wurde gestoppt!</div>
+    </div>
+
+    <div class="email-item" id="item-david" role="listitem" tabindex="0"
+         onclick="showEmail('david')" onkeydown="if(event.key==='Enter')showEmail('david')">
+      <div class="ei-dot" aria-hidden="true"></div>
+      <div class="ei-from">David K.</div>
+      <div class="ei-subject">Kommst du nachher in die Kaffeepause?</div>
+    </div>
+  </div>
+
+  <!-- Email detail -->
+  <div id="email-detail" role="main">
+
+    <!-- Placeholder -->
+    <div id="placeholder">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none"
+           stroke="#1e3a5f" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="2" y="4" width="20" height="16" rx="2"/>
+        <polyline points="2,4 12,13 22,4"/>
+      </svg>
+      <p>Wähle eine E-Mail aus dem Posteingang</p>
+    </div>
+
+    <!-- ── Bibliothek ── -->
+    <div id="email-lib" style="display:none" aria-label="E-Mail der Stadtbibliothek">
+      <div class="safe-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <polyline points="9,12 11,14 15,10"/>
+        </svg>
+        Sichere E-Mail
+      </div>
+      <div class="email-card">
+        <div class="ef">
+          <span class="ef-label">Von:</span>
+          <span class="ef-val">info@stadtbibliothek-dresden.de</span>
+        </div>
+        <div class="ef">
+          <span class="ef-label">An:</span>
+          <span class="ef-val">giselda.mayer@stadtdresden.de</span>
+        </div>
+        <div class="ef">
+          <span class="ef-label">Betreff:</span>
+          <span class="ef-val">Erinnerung: Ihr ausgeliehenes Buch ist fällig</span>
+        </div>
+      </div>
+      <div class="safe-body">
+        <p>Sehr geehrte Frau Mayer,</p>
+        <p>wir möchten Sie freundlich daran erinnern, dass das von Ihnen ausgeliehene Buch <em>„Digitale Welten verstehen"</em> am 08.06.2026 fällig ist.</p>
+        <p>Sie können das Buch bequem in unserer Filiale zurückgeben oder eine Verlängerung im Kundenkonto beantragen.</p>
+        <p>Ihr Team der Stadtbibliothek Dresden</p>
+      </div>
+    </div>
+
+    <!-- ── Phishing-Mail ── -->
+    <div id="email-phish" style="display:none" aria-label="Verdächtige E-Mail des A-to-Z-Versands">
+
+      <div id="task-bar">
+        <div class="task-label">Aufgabe: Klicke auf die 3 Fehler in dieser E-Mail</div>
+        <div id="progress-track"><div id="progress-fill"></div></div>
+        <div id="found-counter">Gefunden: <span id="found-count">0</span> / 3 Fehler</div>
+      </div>
+
+      <div class="email-card">
+        <div class="ef">
+          <span class="ef-label">Von:</span>
+          <span class="ef-val">
+            <span class="hotspot" id="hs-sender" role="button" tabindex="0"
+                  onclick="findError('sender')" onkeydown="if(event.key==='Enter')findError('sender')"
+                  title="Verdächtig? Klicken!">service@a-to-zet-versand.net</span>
+          </span>
+        </div>
+        <div class="ef">
+          <span class="ef-label">An:</span>
+          <span class="ef-val">giselda.mayer@stadtdresden.de</span>
+        </div>
+        <div class="ef">
+          <span class="ef-label">Betreff:</span>
+          <span class="ef-val" style="color:#fca5a5; font-weight:700;">
+            ⚠️ WICHTIG: Ihr Paket wurde gestoppt! Sofort handeln!
+          </span>
+        </div>
+      </div>
+
+      <div class="phish-body">
+        <p>Sehr geehrte Kundin,</p>
+        <p>Ihr Paket mit der Sendungsnummer <strong style="color:#94a3b8">AZ-2026-88471</strong>
+           konnte leider nicht zugestellt werden. Es wurde in unserem Verteilerzentrum gestoppt.</p>
+
+        <div class="warn-box">
+          ⏱&nbsp;<span class="hotspot" id="hs-threat" role="button" tabindex="0"
+               onclick="findError('threat')" onkeydown="if(event.key==='Enter')findError('threat')"
+               title="Verdächtig? Klicken!">Wenn Sie nicht innerhalb von 10 Minuten auf den Link klicken,
+               wird Ihr Paket unwiderruflich vernichtet!</span>
+        </div>
+
+        <p>Um Ihr Paket freizuschalten und die Zustellung zu bestätigen, klicken Sie bitte sofort:</p>
+
+        <div id="track-btn" class="hotspot" role="button" tabindex="0"
+             onclick="findError('link')" onkeydown="if(event.key==='Enter')findError('link')"
+             title="Fahre mit der Maus darüber – was steht da wirklich?">
+          📦 Paket verfolgen
+          <div id="fake-url">⚠ www.schatten-hacker-virus.de</div>
+        </div>
+
+        <p>Mit freundlichen Grüßen,<br>Ihr A-to-Z-Versand Kundenservice</p>
+      </div>
+    </div>
+
+    <!-- ── David ── -->
+    <div id="email-david" style="display:none" aria-label="E-Mail von David">
+      <div class="safe-badge">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <polyline points="9,12 11,14 15,10"/>
+        </svg>
+        Sichere E-Mail
+      </div>
+      <div class="email-card">
+        <div class="ef">
+          <span class="ef-label">Von:</span>
+          <span class="ef-val">david.krause@stadtdresden.de</span>
+        </div>
+        <div class="ef">
+          <span class="ef-label">An:</span>
+          <span class="ef-val">giselda.mayer@stadtdresden.de</span>
+        </div>
+        <div class="ef">
+          <span class="ef-label">Betreff:</span>
+          <span class="ef-val">Kaffeepause heute?</span>
+        </div>
+      </div>
+      <div class="safe-body">
+        <p>Hey Giselda,</p>
+        <p>kommst du nachher noch in die Kaffeepause? Ich hab Kekse mitgebracht &#127850;</p>
+        <p>Liebe Grüße, David</p>
+      </div>
+    </div>
+
+  </div><!-- /email-detail -->
+</div><!-- /main -->
+
+<!-- ── Wrong click feedback ── -->
+<div id="wrong-msg" role="alert">Das ist kein Fehler – such weiter! 🔍</div>
+
+<!-- ══════════════════════════
+     SUCCESS OVERLAY
+══════════════════════════ -->
+<div id="success-overlay" role="dialog" aria-modal="true" aria-label="Rätsel gelöst">
+  <div style="font-size:40px" aria-hidden="true">🎉</div>
+  <div class="success-title">Phishing entlarvt!</div>
+  <div style="font-size:13px; color:#64748b; max-width:380px; line-height:1.6;">
+    Die Mail zerbrach in digitale Pixel. Dahinter erscheint die Code-Ziffer:
+  </div>
+
+  <div id="pixel-grid" aria-hidden="true"></div>
+
+  <div id="code-digit" aria-label="Code-Ziffer 9">9</div>
+
+  <div class="notebook" aria-label="Notizbucheintrag">
+    &#128210; <strong>Notizbuch – Raum 3 gelöst:</strong><br><br>
+    Giselda hat gelernt, dass Pakete
+    <strong>niemals mit Vernichtung drohen</strong>.
+    Echte Absender schreiben von korrekten Domains.
+    Links verstecken sich nie.<br><br>
+    <strong>Code-Ziffer 9 gesichert ✓</strong>
+  </div>
+
+  <button id="reset-btn" onclick="resetGame()">↺ Nochmal spielen</button>
+</div>
+
+<!-- ══════════════════════════
+     HINT OVERLAY
+══════════════════════════ -->
+<div id="hint-overlay" role="dialog" aria-modal="true" aria-label="Hinweise">
+  <div id="hint-panel">
+    <div class="hint-title">💡 Hinweise von Diggi</div>
+    <button id="hint-close" onclick="closeHints()" aria-label="Hinweise schließen">✕</button>
+
+    <div class="hint-item" id="hint1" role="button" tabindex="0"
+         onclick="revealHint('hint1',0)" onkeydown="if(event.key==='Enter')revealHint('hint1',0)">
+      <span class="hint-num">1.</span>
+      <span>Klicke, um den Hinweis aufzudecken …</span>
+    </div>
+    <div class="hint-item" id="hint2" role="button" tabindex="0"
+         onclick="revealHint('hint2',1)" onkeydown="if(event.key==='Enter')revealHint('hint2',1)">
+      <span class="hint-num">2.</span>
+      <span>Klicke, um den Hinweis aufzudecken …</span>
+    </div>
+    <div class="hint-item" id="hint3" role="button" tabindex="0"
+         onclick="revealHint('hint3',2)" onkeydown="if(event.key==='Enter')revealHint('hint3',2)">
+      <span class="hint-num">3.</span>
+      <span>Klicke, um den Hinweis aufzudecken …</span>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+/* ── State ── */
+var found = { sender: false, threat: false, link: false };
+var currentEmail = null;
+var phishOpened = false;
+var wrongTimer = null;
+var hintRevealed = [false, false, false];
+
+var HINTS = [
+  "Erinnerst du dich an Raum 1? Giselda wartet auf ein Paket. Welche der drei Mails nutzt das aus?",
+  "Hacker machen oft Fehler im Namen oder wollen dich erschrecken, damit du schnell klickst. Schau dir den Absender ganz genau an!",
+  "Klicke auf die komische E-Mail-Adresse, auf die Drohung mit den '10 Minuten' und fahre mit der Maus über den blauen Knopf!"
+];
+
+var DIGGI = {
+  lib:    "Die Bibliotheksmail sieht in Ordnung aus – die Adresse stimmt, kein Druck, kein seltsamer Link.",
+  phish:  "Das ist sie! Schau dir diese Mail genau an. Klicke auf alles, was verdächtig aussieht!",
+  david:  "Davids Mail ist harmlos – er schreibt von seiner echten Stadtdresden-Adresse. Alles okay!",
+  sender: "Richtig! 'a-to-zet-versand.net' ist NICHT die echte Adresse. Die echte wäre 'a-to-z.de'!",
+  threat: "Richtig! Echte Pakete werden NIEMALS vernichtet – das ist psychologischer Druck!",
+  link:   "Richtig! 'schatten-hacker-virus.de' ist eine gefährliche Seite – niemals klicken!"
+};
+
+/* ── Helpers ── */
+function setDiggi(text) {
+  document.getElementById('diggi-bubble').textContent = text;
+}
+
+function hideAll() {
+  document.getElementById('placeholder').style.display  = 'none';
+  document.getElementById('email-lib').style.display    = 'none';
+  document.getElementById('email-phish').style.display  = 'none';
+  document.getElementById('email-david').style.display  = 'none';
+  document.querySelectorAll('.email-item').forEach(function(el) {
+    el.classList.remove('active-safe', 'active-phish');
+  });
+}
+
+/* ── Show email ── */
+function showEmail(type) {
+  hideAll();
+  currentEmail = type;
+
+  if (type === 'lib') {
+    document.getElementById('email-lib').style.display = 'block';
+    document.getElementById('item-lib').classList.add('active-safe');
+    setDiggi(DIGGI.lib);
+  } else if (type === 'phish') {
+    document.getElementById('email-phish').style.display = 'block';
+    document.getElementById('item-phish').classList.add('active-phish');
+    setDiggi(phishOpened ? "Gut! Suche die drei Fehler – klicke direkt darauf!" : DIGGI.phish);
+    phishOpened = true;
+  } else if (type === 'david') {
+    document.getElementById('email-david').style.display = 'block';
+    document.getElementById('item-david').classList.add('active-safe');
+    setDiggi(DIGGI.david);
+  }
+}
+
+/* ── Find error ── */
+function findError(type) {
+  if (found[type]) return;
+  if (currentEmail !== 'phish') { showWrong(); return; }
+
+  found[type] = true;
+  document.getElementById('hs-' + (type === 'link' ? '' : type)).classList.add('found');
+  if (type === 'link') document.getElementById('track-btn').classList.add('found');
+
+  var count = (found.sender ? 1 : 0) + (found.threat ? 1 : 0) + (found.link ? 1 : 0);
+  document.getElementById('found-count').textContent = count;
+  document.getElementById('progress-fill').style.width = (count / 3 * 100) + '%';
+  setDiggi(DIGGI[type]);
+
+  if (count === 3) setTimeout(triggerSuccess, 700);
+}
+
+/* ── Wrong feedback ── */
+function showWrong() {
+  var el = document.getElementById('wrong-msg');
+  el.style.display = 'block';
+  if (wrongTimer) clearTimeout(wrongTimer);
+  wrongTimer = setTimeout(function() { el.style.display = 'none'; }, 2200);
+}
+
+/* ── Success animation ── */
+function triggerSuccess() {
+  setDiggi("ALLE DREI FEHLER GEFUNDEN! Die Mail zerfällt – die Code-Ziffer wird sichtbar!");
+
+  /* Build pixel grid */
+  var grid = document.getElementById('pixel-grid');
+  grid.innerHTML = '';
+  for (var i = 0; i < 96; i++) {
+    var px = document.createElement('div');
+    px.className = 'px';
+    px.style.setProperty('--d', i);
+    var hues = ['#ef4444','#f97316','#dc2626','#ea580c','#fbbf24'];
+    px.style.background = hues[Math.floor(Math.random() * hues.length)];
+    grid.appendChild(px);
+  }
+  grid.classList.add('visible');
+
+  setTimeout(function() {
+    var overlay = document.getElementById('success-overlay');
+    overlay.classList.add('visible');
+  }, 900);
+}
+
+/* ── Reset ── */
+function resetGame() {
+  found = { sender: false, threat: false, link: false };
+  phishOpened = false;
+  currentEmail = null;
+
+  document.getElementById('success-overlay').classList.remove('visible');
+  document.getElementById('pixel-grid').classList.remove('visible');
+  document.getElementById('pixel-grid').innerHTML = '';
+
+  hideAll();
+  document.getElementById('placeholder').style.display = 'flex';
+
+  document.querySelectorAll('.hotspot').forEach(function(el) { el.classList.remove('found'); });
+  document.getElementById('track-btn').classList.remove('found');
+  document.getElementById('found-count').textContent = '0';
+  document.getElementById('progress-fill').style.width = '0%';
+
+  setDiggi("Oje, schaut euch Giseldas Posteingang an! ShadowByte hat eine täuschend echte Mail geschickt. Giselda will gerade klicken – findet die Phishing-Mail und ihre drei Fehler!");
+}
+
+/* ── Hints ── */
+function openHints()  { document.getElementById('hint-overlay').classList.add('visible'); }
+function closeHints() { document.getElementById('hint-overlay').classList.remove('visible'); }
+
+function revealHint(id, idx) {
+  if (hintRevealed[idx]) return;
+  hintRevealed[idx] = true;
+  var el = document.getElementById(id);
+  el.innerHTML = '<span class="hint-num">' + (idx + 1) + '.</span> ' + HINTS[idx];
+  el.classList.add('revealed');
+}
+
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') closeHints();
+});
+</script>
+</body>
+</html>
